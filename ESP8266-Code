@@ -1,0 +1,123 @@
+//#include <WiFi.h>
+#include <ESP8266WiFi.h>
+#include <WebSocketsClient.h>
+#include <SocketIOClient.h>   //Need both libraries
+#include <ArduinoJson.h>
+
+//WiFi
+const char* ssid     = "Put SSID"; // server id
+const char* password = "Put Password"; // password
+
+//Socket.io
+SocketIOclient socketIO;
+const char* serverAddress = "Put_website_link";
+
+// Pins
+const int LED_PIN = D2; 
+
+// Other variables
+int ledState = 0;
+
+
+//-------------------------------------------------------------
+
+void setup() {
+  Serial.begin(9600);
+
+  //------- WiFi connection
+
+  // Debug messges
+  Serial.println();
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  // Initiate connection
+  WiFi.mode(WIFI_STA); // set mode to connect to a wifi station
+  WiFi.begin(ssid, password); // log into network with username and password
+  
+  // Print dots while connecting
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  
+  // wait for connection:
+  if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+    Serial.println("WiFi Failed");
+    // it failed! do nothing, nothing more to do
+    while (1) {
+      delay(1000);
+    }
+  }
+
+  // Confirm connection
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+
+
+  //------- Connect to server and open socket
+
+  // server address, port (and URL)
+  socketIO.begin(serverAddress, 80);
+
+  // event handler
+  socketIO.onEvent(socketIOEvent);
+
+
+  //------- Initialise pins
+  pinMode(LED_PIN, OUTPUT);
+
+}
+
+//-------------------------------------------------------------
+void loop() {
+
+  // SocketIO runs all the time (listening / sending)
+  socketIO.loop();
+
+  // Update Led
+  if(ledState == 1) {
+    digitalWrite(LED_PIN, HIGH);
+  } else {
+    digitalWrite(LED_PIN, LOW);
+  }
+
+}
+
+//-------------------------------------------------------------
+////// Socket.IO event management
+
+void socketIOEvent(socketIOmessageType_t type, uint8_t * payload, size_t length) {
+  switch (type) {
+    case sIOtype_DISCONNECT:
+      Serial.printf("[IOc] Disconnected!\n");
+      break;
+    case sIOtype_CONNECT:
+      Serial.printf("[IOc] Connected to url: %s\n", serverAddress);
+      // join default namespace (no auto join in Socket.IO V3)
+      //socketIO.send(sIOtype_CONNECT, "/");
+      break;
+
+    //----- normal messages coming in  
+    case sIOtype_EVENT:
+      Serial.printf("[IOc] get event: %s\n", payload);
+
+      //---------------------------
+      // Manage message HERE:
+      //---------------------------
+      // Message expected (payload): 
+      // ["ledBoard",1]
+
+        if (payload[12] == '1') {
+          ledState = 1;
+          Serial.println("turn on");
+        } else if (payload[12] == '0')
+          ledState = 0;
+          Serial.println("turn off");
+                
+      break;
+  }
+}
